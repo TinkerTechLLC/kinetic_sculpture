@@ -8,6 +8,8 @@
 
 // Motor driver requires TimerOne interrupt
 #include <TimerOne.h>
+#include <FrequencyTimer2.h>
+
 
 //******** XBee Vars ********//
 
@@ -45,9 +47,9 @@ const int STEP[2] = {6, 10};
 const int MS[2] = {4, 12};
 
 // Motor values
-int targetSpd[2] = {0, 0};                     // The targer motor speed. Default to 0 RPM
+int targetSpd[2] = {0, 0};                    // The targer motor speed. Default to 0 RPM
 int curSpd[2] = {0, 0};                       // The actual current motor speed. Will not equal target speed while performing accelerations.
-int ms[2] = {HIGH, HIGH};                      // Default to quarter-stepping (HIGH). LOW indicates full-stepping.
+int ms[2] = {HIGH, HIGH};                     // Default to quarter-stepping (HIGH). LOW indicates full-stepping.
 long stepDelay[2];                            // Microsecond delay between steps
 long lastStepTime[2] = {0, 0};                // Time of last step in microseconds
 boolean updateRequired = false;               // Flag to indicate timing and LCD update
@@ -77,6 +79,7 @@ void setup()
   }
 
   //******** Motor Setup ********//
+  Serial.begin(9600);
   for(int i = 0; i < MOTOR_COUNT; i++){
     pinMode(DIR[i], OUTPUT);
     pinMode(STEP[i], OUTPUT);
@@ -84,6 +87,11 @@ void setup()
   }
   updateMsPins();
   updateDirPins();
+
+  // Setup the timers
+  Timer1.initialize();                        // Get Timer1 ready to accept function and timing
+  FrequencyTimer2::disable();                 // This disables toggling of pin 11 at every interrupt
+  FrequencyTimer2::setOnOverflow(0);          // Initially set the interrupt function to null
 }
 
 void loop()
