@@ -16,9 +16,14 @@ void stepMotor1(){
 
 // Sets the interrupt timing for new motor speeds
 void updateTiming(){
+  boolean noUpdate[2] = {false, false};
+  updateTiming(noUpdate);
+}
+
+void updateTiming(boolean* msUpdate){
     for(int i = 0; i < MOTOR_COUNT; i++){
       // Only update motors that have changed speeds
-      if(targetSpd[i] == curSpd[i]){
+      if(targetSpd[i] == curSpd[i] && !msUpdate[i]){
         continue;
       }
         
@@ -49,9 +54,11 @@ void updateTiming(){
       curSpd[i] = targetSpd[i];
       // ... and assign it to the proper interrupt timer
       if(i == 0){
+        Serial.println("Updating motor 0 interrupt");
         Timer1.attachInterrupt(stepMotor0, stepDelay[0] >= 0 ? stepDelay[0] : -stepDelay[0]);
       }
       else if(i == 1){
+        Serial.println("Updating motor 1 interrupt");
         FrequencyTimer2::setOnOverflow(stepMotor1);
         FrequencyTimer2::setPeriod(stepDelay[1] >= 0 ? stepDelay[1]*2 : -stepDelay[1]*2);
       }
@@ -67,9 +74,15 @@ void updateDirPins(){
 
 // Sets the MS pins
 void updateMsPins(){
+  static int lastMs[2] = {LOW, LOW};
+  boolean updateMs[2] = {false, false};
   for(int i = 0; i < MOTOR_COUNT; i++){
-    digitalWrite(MS[i], ms[i]);
+    if(ms[i] != lastMs[i]){
+      digitalWrite(MS[i], ms[i]);
+      updateMs[i] = true;
+    }
   }
+  updateTiming(updateMs);
 }
 
 // Returns the direction based upon current target speed
