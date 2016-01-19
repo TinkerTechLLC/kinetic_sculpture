@@ -101,8 +101,8 @@ void loop()
 
   if(updateRequired){
     updateLCD();
-    updateTiming();
     updateMsPins();
+    updateTiming();
     updateDirPins();
     updateRequired = false;
   }
