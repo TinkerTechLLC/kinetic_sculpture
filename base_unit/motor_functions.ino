@@ -97,57 +97,51 @@ int getDir(int motor){
 
 //******** XBee Command Handlers ********//
 
+void changeMotorSelect(){
+  while (XBee.available() < 1);               // Wait for motor and setting to be retrieved
+  motorSelect = ASCIItoInt(XBee.read());  
+  updateLCD();
+}
+
 void increaseSpeed(){
   Serial.println("Increasing motor speed");
-  while (XBee.available() < 1);               // Wait for motor to become available
-  int motor = ASCIItoInt(XBee.read());
-  targetSpd[motor] += RPM_INC;
-  reportSpeed(motor);
+  targetSpd[motorSelect] += RPM_INC;
+  reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void decreaseSpeed(){
   Serial.println("Decreasing motor speed");
-  while (XBee.available() < 1);               // Wait for motor to become available
-  int motor = ASCIItoInt(XBee.read());
-  targetSpd[motor] -= RPM_INC;
-  reportSpeed(motor);
+  targetSpd[motorSelect] -= RPM_INC;
+  reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void setMotSpeed(){
   Serial.println("Setting motor speed");
   while (XBee.available() < 4);               // Wait for pin and three value numbers to be received
-  int motor = ASCIItoInt(XBee.read());        // Read in the motor number
   int newDir = ASCIItoHL(XBee.read());        // Read the direction
   int value = ASCIItoInt(XBee.read()) * 100;  // Convert next three
   value += ASCIItoInt(XBee.read()) * 10;      // chars to a 3-digit
   value += ASCIItoInt(XBee.read());           // number.
 
   // Set the motor values
-  targetSpd[motor] = newDir == 1 ? value : -value;
-  reportSpeed(motor);
+  targetSpd[motorSelect] = newDir == 1 ? value : -value;
+  reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void flipMotor(){
   Serial.println("Flipping motor direction");
-  while (XBee.available() < 1);               // Wait for motor to become available
-  char motor = ASCIItoInt(XBee.read());
-  targetSpd[motor] = -targetSpd[motor];
-  reportSpeed(motor);
+  targetSpd[motorSelect] = -targetSpd[motorSelect];
+  reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void setMicrosteps(){
-  while (XBee.available() < 2);               // Wait for motor and setting to be retrieved
-  int motor = ASCIItoInt(XBee.read());        // Read in the motor number
-  ms[motor] = ASCIItoHL(XBee.read());         // Convert to a HIGH / LOW value and save to microstep array
+  while (XBee.available() < 1);               // Wait for motor and setting to be retrieved
+  ms[motorSelect] = ASCIItoHL(XBee.read());   // Convert to a HIGH / LOW value and save to microstep array
   updateRequired = true;
-  Serial.println("Setting " + String(motor) + " microsteps:" + String(ms[motor]));
-}
-
-void reportSpeed(int motor){
-  Serial.println("Motor " + String(motor) + " new speed: " + String(targetSpd[motor]));
+  Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
 }
 

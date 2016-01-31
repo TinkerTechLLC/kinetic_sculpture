@@ -56,6 +56,7 @@ boolean updateRequired = false;               // Flag to indicate timing and LCD
 
 const byte on[2] = {B01000000, B00000100};    // High comparison states for switching step pins
 const byte off[2] = {B10111111, B11111011};   // Low comparison states for switching step pins
+int motorSelect = 0;
 
 void setup()
 {
@@ -73,10 +74,10 @@ void setup()
   lcd.begin(16, 2);
   lcd.setBacklight(BLUE);
   lcd.clear();
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    lcd.setCursor(0, i);
-    lcd.print("Mot " + String(i) + " spd: 0");
-  }
+  lcd.setCursor(0, 0);
+  lcd.print("Above: 0");
+  lcd.setCursor(0, 1);
+  lcd.print("Below: 0");
 
   //******** Motor Setup ********//
   Serial.begin(9600);
@@ -114,6 +115,10 @@ void checkXBee(){
     char c = XBee.read();
     switch (c)
     {
+    case'c':
+    case'C':
+      changeMotorSelect();
+      break;
     case 'u':      // If received 'w'
     case 'U':      // or 'W'
       increaseSpeed(); // Increase specified motor speed by 3 rpm
@@ -139,11 +144,16 @@ void checkXBee(){
 }
 
 void updateLCD(){
+  static int oldSpd[2] = {0, 0};
+  
   for(int i = 0; i < MOTOR_COUNT; i++){
-    lcd.setCursor(11, i);
-    lcd.print("     "); 
-    lcd.setCursor(11, i);
-    lcd.print(targetSpd[i]); 
+    if(oldSpd[i] != targetSpd[i]){
+      lcd.setCursor(7, i);
+      lcd.print("         "); 
+      lcd.setCursor(7, i);
+      lcd.print(targetSpd[i]); 
+      oldSpd[i] = targetSpd[i]
+    }
   }
 }
 
@@ -184,10 +194,10 @@ void printMenu()
 {
   // Everything is "F()"'d -- which stores the strings in flash.
   // That'll free up SRAM for more importanat stuff.
-  XBee.println();
+  /*XBee.println();
   XBee.println(F("Motor Driver XBee Remote Control!"));
   XBee.println(F("============================"));
-  XBee.println(F("Connection verified!"));
+  XBee.println(F("Connection verified!"));*/
 }
 
 
