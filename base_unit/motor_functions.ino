@@ -131,17 +131,14 @@ void setMotSpeed(){
   updateRequired = true;
 }
 
-void flipMotor(){
-  Serial.println("Flipping motor direction");
-  targetSpd[motorSelect] = -targetSpd[motorSelect];
-  reportSpeed(motorSelect);
-  updateRequired = true;
-}
-
 void setMicrosteps(){
   while (XBee.available() < 1);               // Wait for motor and setting to be retrieved
   ms[motorSelect] = ASCIItoHL(XBee.read());   // Convert to a HIGH / LOW value and save to microstep array
   updateRequired = true;
   Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
+}
+
+void reportSpeed(int motor){
+  Serial.println("Motor " + String(motor) + " speed: " + targetSpd[motor]);
 }
 

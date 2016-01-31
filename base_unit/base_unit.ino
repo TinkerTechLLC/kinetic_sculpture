@@ -131,10 +131,6 @@ void checkXBee(){
     case 'S':      // or 'R'
       setMotSpeed();  // Set speed of specified motor
       break;
-    case 'f':      // If received 'a'
-    case 'F':      // or 'A'
-      flipMotor();  // Reverse direction of specified motor
-      break;
     case 'm':
     case 'M':
       setMicrosteps(); // Set the microstep setting of the specified motor
@@ -152,7 +148,7 @@ void updateLCD(){
       lcd.print("         "); 
       lcd.setCursor(7, i);
       lcd.print(targetSpd[i]); 
-      oldSpd[i] = targetSpd[i]
+      oldSpd[i] = targetSpd[i];
     }
   }
 }
