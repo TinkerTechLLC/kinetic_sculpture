@@ -86,7 +86,9 @@ void setup()
   for(int i = 0; i < MOTOR_COUNT; i++){
     pinMode(DIR[i], OUTPUT);
     pinMode(STEP[i], OUTPUT);
-    pinMode(MS[i], OUTPUT);
+    pinMode(MS1[i], OUTPUT);
+    pinMode(MS2[i], OUTPUT);
+    pinMode(MS3[i], OUTPUT);
   }
   updateMsPins();
   updateDirPins();
