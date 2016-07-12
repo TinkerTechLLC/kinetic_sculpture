@@ -42,23 +42,23 @@ void updateTiming(boolean* msUpdate){
         float msMultiplier = ms[i] == HIGH ? 4 : 1;
         float stepsPerMin = (float)targetSpd[i] * (float)STEP_PER_ROT * msMultiplier;
         float stepsPerSec = stepsPerMin / SEC_PER_MIN;
-        Serial.print("Motor " + String(i) + " steps per min: " + String(stepsPerMin) +
+        COM.print("Motor " + String(i) + " steps per min: " + String(stepsPerMin) +
           " Steps per sec: " + String(stepsPerSec));
         stepDelay[i] = round((float)MICROS_PER_SEC / stepsPerSec);
       } 
-      Serial.print(" Current RPM: ");
-      Serial.print(targetSpd[i]);
-      Serial.print(" Current delay: ");
-      Serial.println(stepDelay[i]);
+      COM.print(" Current RPM: ");
+      COM.print(targetSpd[i]);
+      COM.print(" Current delay: ");
+      COM.println(stepDelay[i]);
 
       curSpd[i] = targetSpd[i];
       // ... and assign it to the proper interrupt timer
       if(i == 0){
-        Serial.println("Updating motor 0 interrupt");
+        COM.println("Updating motor 0 interrupt");
         Timer1.attachInterrupt(stepMotor0, stepDelay[0] >= 0 ? stepDelay[0] : -stepDelay[0]);
       }
       else if(i == 1){
-        Serial.println("Updating motor 1 interrupt");
+        COM.println("Updating motor 1 interrupt");
         FrequencyTimer2::setOnOverflow(stepMotor1);
         FrequencyTimer2::setPeriod(stepDelay[1] >= 0 ? stepDelay[1]*2 : -stepDelay[1]*2);
       }
@@ -95,35 +95,35 @@ int getDir(int motor){
   }
 }
 
-//******** XBee Command Handlers ********//
+//******** COM Command Handlers ********//
 
 void changeMotorSelect(){
-  while (XBee.available() < 1);               // Wait for motor and setting to be retrieved
-  motorSelect = ASCIItoInt(XBee.read());  
+  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  motorSelect = ASCIItoInt(COM.read());  
   updateLCD();
 }
 
 void increaseSpeed(){
-  Serial.println("Increasing motor speed");
+  COM.println("Increasing motor speed");
   targetSpd[motorSelect] += RPM_INC;
   reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void decreaseSpeed(){
-  Serial.println("Decreasing motor speed");
+  COM.println("Decreasing motor speed");
   targetSpd[motorSelect] -= RPM_INC;
   reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void setMotSpeed(){
-  Serial.println("Setting motor speed");
-  while (XBee.available() < 4);               // Wait for pin and three value numbers to be received
-  int newDir = ASCIItoHL(XBee.read());        // Read the direction
-  int value = ASCIItoInt(XBee.read()) * 100;  // Convert next three
-  value += ASCIItoInt(XBee.read()) * 10;      // chars to a 3-digit
-  value += ASCIItoInt(XBee.read());           // number.
+  COM.println("Setting motor speed");
+  while (COM.available() < 4);               // Wait for pin and three value numbers to be received
+  int newDir = ASCIItoHL(COM.read());        // Read the direction
+  int value = ASCIItoInt(COM.read()) * 100;  // Convert next three
+  value += ASCIItoInt(COM.read()) * 10;      // chars to a 3-digit
+  value += ASCIItoInt(COM.read());           // number.
 
   // Set the motor values
   targetSpd[motorSelect] = newDir == 1 ? value : -value;
@@ -132,13 +132,13 @@ void setMotSpeed(){
 }
 
 void setMicrosteps(){
-  while (XBee.available() < 1);               // Wait for motor and setting to be retrieved
-  ms[motorSelect] = ASCIItoHL(XBee.read());   // Convert to a HIGH / LOW value and save to microstep array
+  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  ms[motorSelect] = ASCIItoInt(COM.read());  // Convert to an int value and save to microstep array
   updateRequired = true;
-  Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
+  COM.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
 }
 
 void reportSpeed(int motor){
-  Serial.println("Motor " + String(motor) + " speed: " + targetSpd[motor]);
+  COM.println("Motor " + String(motor) + " speed: " + targetSpd[motor]);
 }
 

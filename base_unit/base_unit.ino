@@ -10,6 +10,13 @@
 #include <TimerOne.h>
 #include <FrequencyTimer2.h>
 
+#define SERIAL
+
+#ifdef SERIAL
+  #define COM Serial
+#elif
+  #define COM Xbee
+#endif
 
 //******** XBee Vars ********//
 
@@ -66,7 +73,7 @@ void setup()
   
   // Initialize XBee Software Serial port. Make sure the baud
   // rate matches your XBee setting (9600 is default).
-  XBee.begin(9600); 
+  COM.begin(9600); 
   printMenu(); // Print a helpful menu:
 
 
@@ -82,7 +89,6 @@ void setup()
   lcd.print("Below: 0");
 
   //******** Motor Setup ********//
-  Serial.begin(9600);
   for(int i = 0; i < MOTOR_COUNT; i++){
     pinMode(DIR[i], OUTPUT);
     pinMode(STEP[i], OUTPUT);
@@ -114,9 +120,9 @@ void loop()
 }
 
 void checkXBee(){
-    if (XBee.available())
+    if (COM.available())
   {
-    char c = XBee.read();
+    char c = COM.read();
     switch (c)
     {
     case'c':
