@@ -154,9 +154,12 @@ void updateLCD(){
   
   for(int i = 0; i < MOTOR_COUNT; i++){
     if(oldSpd[i] != targetSpd[i]){
-      lcd.setCursor(7, i);
+      lcd.setCursor(6, i);
       lcd.print("         "); 
-      lcd.setCursor(7, i);
+      if(targetSpd[i] >= 0)
+        lcd.setCursor(7, i);
+      else
+        lcd.setCursor(6, i);
       lcd.print(targetSpd[i]); 
       oldSpd[i] = targetSpd[i];
     }
