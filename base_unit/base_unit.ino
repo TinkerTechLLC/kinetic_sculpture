@@ -56,12 +56,14 @@ const int MS2[2] = {5, 10};
 const int MS3[2] = {4, 13};
 
 // Motor values
-int targetSpd[2] = {0, 0};                    // The targer motor speed. Default to 0 RPM
-int curSpd[2] = {0, 0};                       // The actual current motor speed. Will not equal target speed while performing accelerations.
-int ms[2] = {HIGH, HIGH};                     // Default to quarter-stepping (HIGH). LOW indicates full-stepping.
-long stepDelay[2];                            // Microsecond delay between steps
-long lastStepTime[2] = {0, 0};                // Time of last step in microseconds
-boolean updateRequired = false;               // Flag to indicate timing and LCD update
+const int DEFAULT_SPD = 30;
+static int DEFAULT_MS = 1;
+int targetSpd[2] = {DEFAULT_SPD, DEFAULT_SPD}; // The targer motor speed. Default to 0 RPM
+int curSpd[2] = {DEFAULT_SPD, DEFAULT_SPD};    // The actual current motor speed. Will not equal target speed while performing accelerations.
+int ms[2] = {DEFAULT_MS, DEFAULT_MS };         // Default to full-stepping (HIGH). LOW indicates full-stepping.
+long stepDelay[2];                             // Microsecond delay between steps
+long lastStepTime[2] = {0, 0};                 // Time of last step in microseconds
+boolean updateRequired = true;                 // Flag to indicate timing and LCD update
 
 const byte on[2] = {B01000000, B00000100};    // High comparison states for switching step pins
 const byte off[2] = {B10111111, B11111011};   // Low comparison states for switching step pins

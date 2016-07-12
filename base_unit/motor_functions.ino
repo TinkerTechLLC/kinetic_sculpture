@@ -72,19 +72,6 @@ void updateDirPins(){
   }
 }
 
-// Sets the MS pins
-void updateMsPins(){
-  static int lastMs[2] = {LOW, LOW};
-  boolean updateMs[2] = {false, false};
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    if(ms[i] != lastMs[i]){
-      digitalWrite(MS[i], ms[i]);
-      updateMs[i] = true;
-    }
-  }
-  updateTiming(updateMs);
-}
-
 // Returns the direction based upon current target speed
 int getDir(int motor){
   if(targetSpd[motor] >= 0){
@@ -136,6 +123,45 @@ void setMicrosteps(){
   ms[motorSelect] = ASCIItoInt(COM.read());  // Convert to an int value and save to microstep array
   updateRequired = true;
   COM.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
+  updateMsPins();
+}
+
+void updateMsPins(){
+  static int lastMs[2] = {DEFAULT_MS, DEFAULT_MS};
+  boolean updateMs[2] = {false, false};
+  if(lastMs[motorSelect] != ms[motorSelect]){
+    switch(ms[motorSelect]){
+    case 1:
+      digitalWrite(MS1[motorSelect], LOW);
+      digitalWrite(MS2[motorSelect], LOW);
+      digitalWrite(MS3[motorSelect], LOW);
+      break;
+    case 2:
+      digitalWrite(MS1[motorSelect], HIGH);
+      digitalWrite(MS2[motorSelect], LOW);
+      digitalWrite(MS3[motorSelect], LOW);
+      break;
+    case 4:
+      digitalWrite(MS1[motorSelect], LOW);
+      digitalWrite(MS2[motorSelect], HIGH);
+      digitalWrite(MS3[motorSelect], LOW);
+      break;
+    case 8:
+      digitalWrite(MS1[motorSelect], HIGH);
+      digitalWrite(MS2[motorSelect], HIGH);
+      digitalWrite(MS3[motorSelect], LOW);
+      break;
+    case 16:
+      digitalWrite(MS1[motorSelect], HIGH);
+      digitalWrite(MS2[motorSelect], HIGH);
+      digitalWrite(MS3[motorSelect], HIGH);
+      break; 
+    }
+    // Indicator to pass timing updater to account for
+    // change in microsteps
+    updateMs[motorSelect] = true;
+  }
+  updateTiming(updateMs);
 }
 
 void reportSpeed(int motor){
