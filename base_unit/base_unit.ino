@@ -42,9 +42,11 @@ const int MOTOR_COUNT = 2;
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
 
 // Pin assignments
-const int DIR[2] = {7, 11};
-const int STEP[2] = {6, 10};
-const int MS[2] = {4, 12};
+const int DIR[2] = {5, 11};
+const int STEP[2] = {6, 12};
+const int MS1[2] = {8, 9};
+const int MS2[2] = {5, 10};
+const int MS3[2] = {4, 13};
 
 // Motor values
 int targetSpd[2] = {0, 0};                    // The targer motor speed. Default to 0 RPM
