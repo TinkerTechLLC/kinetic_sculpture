@@ -16,6 +16,7 @@ void stepMotor1(){
 
 // Sets the interrupt timing for new motor speeds
 void updateTiming(){
+  // updateTiming without parameters forces updates of both motors
   boolean noUpdate[2] = {false, false};
   updateTiming(noUpdate);
 }
@@ -39,26 +40,25 @@ void updateTiming(boolean* msUpdate){
       }
       // Otherwise, determine the new delay interval...
       else{
-        float msMultiplier = ms[i] == HIGH ? 4 : 1;
-        float stepsPerMin = (float)targetSpd[i] * (float)STEP_PER_ROT * msMultiplier;
+        float stepsPerMin = (float)targetSpd[i] * (float)STEP_PER_ROT * ms[i];
         float stepsPerSec = stepsPerMin / SEC_PER_MIN;
-        COM.print("Motor " + String(i) + " steps per min: " + String(stepsPerMin) +
+        Serial.print("Motor " + String(i) + " steps per min: " + String(stepsPerMin) +
           " Steps per sec: " + String(stepsPerSec));
         stepDelay[i] = round((float)MICROS_PER_SEC / stepsPerSec);
       } 
-      COM.print(" Current RPM: ");
-      COM.print(targetSpd[i]);
-      COM.print(" Current delay: ");
-      COM.println(stepDelay[i]);
+      Serial.print(" Current RPM: ");
+      Serial.print(targetSpd[i]);
+      Serial.print(" Current delay: ");
+      Serial.println(stepDelay[i]);
 
       curSpd[i] = targetSpd[i];
       // ... and assign it to the proper interrupt timer
       if(i == 0){
-        COM.println("Updating motor 0 interrupt");
+        Serial.println("Updating motor 0 interrupt");
         Timer1.attachInterrupt(stepMotor0, stepDelay[0] >= 0 ? stepDelay[0] : -stepDelay[0]);
       }
       else if(i == 1){
-        COM.println("Updating motor 1 interrupt");
+        Serial.println("Updating motor 1 interrupt");
         FrequencyTimer2::setOnOverflow(stepMotor1);
         FrequencyTimer2::setPeriod(stepDelay[1] >= 0 ? stepDelay[1]*2 : -stepDelay[1]*2);
       }
@@ -86,26 +86,28 @@ int getDir(int motor){
 
 void changeMotorSelect(){
   while (COM.available() < 1);               // Wait for motor and setting to be retrieved
-  motorSelect = ASCIItoInt(COM.read());  
+  motorSelect = ASCIItoInt(COM.read()); 
+  Serial.print("Selected motor ");
+  Serial.println(motorSelect);
   updateLCD();
 }
 
 void increaseSpeed(){
-  COM.println("Increasing motor speed");
+  Serial.println("Increasing motor speed");
   targetSpd[motorSelect] += RPM_INC;
   reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void decreaseSpeed(){
-  COM.println("Decreasing motor speed");
+  Serial.println("Decreasing motor speed");
   targetSpd[motorSelect] -= RPM_INC;
   reportSpeed(motorSelect);
   updateRequired = true;
 }
 
 void setMotSpeed(){
-  COM.println("Setting motor speed");
+  Serial.println("Setting motor speed");
   while (COM.available() < 4);               // Wait for pin and three value numbers to be received
   int newDir = ASCIItoHL(COM.read());        // Read the direction
   int value = ASCIItoInt(COM.read()) * 100;  // Convert next three
@@ -122,36 +124,41 @@ void setMicrosteps(){
   while (COM.available() < 1);               // Wait for motor and setting to be retrieved
   ms[motorSelect] = ASCIItoInt(COM.read());  // Convert to an int value and save to microstep array
   updateRequired = true;
-  COM.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
+  Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
   updateMsPins();
 }
 
 void updateMsPins(){
-  static int lastMs[2] = {DEFAULT_MS, DEFAULT_MS};
+  static int lastMs[2] = {0, 0};
   boolean updateMs[2] = {false, false};
   if(lastMs[motorSelect] != ms[motorSelect]){
     switch(ms[motorSelect]){
     case 1:
+      Serial.println("MS - 1");
       digitalWrite(MS1[motorSelect], LOW);
       digitalWrite(MS2[motorSelect], LOW);
       digitalWrite(MS3[motorSelect], LOW);
       break;
     case 2:
+      Serial.println("MS - 2");
       digitalWrite(MS1[motorSelect], HIGH);
       digitalWrite(MS2[motorSelect], LOW);
       digitalWrite(MS3[motorSelect], LOW);
       break;
-    case 4:
+    case 3:
+      Serial.println("MS - 4");
       digitalWrite(MS1[motorSelect], LOW);
       digitalWrite(MS2[motorSelect], HIGH);
       digitalWrite(MS3[motorSelect], LOW);
       break;
-    case 8:
+    case 4:
+      Serial.println("MS - 8");
       digitalWrite(MS1[motorSelect], HIGH);
       digitalWrite(MS2[motorSelect], HIGH);
       digitalWrite(MS3[motorSelect], LOW);
       break;
-    case 16:
+    case 5:
+      Serial.println("MS - 16");
       digitalWrite(MS1[motorSelect], HIGH);
       digitalWrite(MS2[motorSelect], HIGH);
       digitalWrite(MS3[motorSelect], HIGH);
@@ -165,6 +172,6 @@ void updateMsPins(){
 }
 
 void reportSpeed(int motor){
-  COM.println("Motor " + String(motor) + " speed: " + targetSpd[motor]);
+  Serial.println("Motor " + String(motor) + " speed: " + targetSpd[motor]);
 }
 
