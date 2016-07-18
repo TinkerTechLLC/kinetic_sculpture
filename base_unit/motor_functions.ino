@@ -75,10 +75,16 @@ void updateDirPins(){
 // Returns the direction based upon current target speed
 int getDir(int motor){
   if(targetSpd[motor] >= 0){
-    return 1;
+    if(motor == 0)
+      return 1;
+    else
+      return 0;
   }
   else{
-    return 0;
+    if(motor == 0)
+      return 0;
+    else
+      return 1;
   }
 }
 
@@ -121,52 +127,66 @@ void setMotSpeed(){
 }
 
 void setMicrosteps(){
-  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  /*while (COM.available() < 1);               // Wait for motor and setting to be retrieved
   ms[motorSelect] = ASCIItoInt(COM.read());  // Convert to an int value and save to microstep array
   updateRequired = true;
   Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
+  updateMsPins();*/
+  
+  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  ms[0] = ASCIItoInt(COM.read());  // Convert to an int value and save to microstep array
+  ms[1] = ms[0];
+  updateRequired = true;
+  Serial.println("Setting " + String(motorSelect) + " microsteps:" + String(ms[motorSelect]));
   updateMsPins();
+  
+  
 }
 
 void updateMsPins(){
   static int lastMs[2] = {0, 0};
   boolean updateMs[2] = {false, false};
-  if(lastMs[motorSelect] != ms[motorSelect]){
-    switch(ms[motorSelect]){
+  for(int i = 0; i < 2; i++){
+  if(lastMs[i] != ms[i]){
+      Serial.print("Setting motor ");
+      Serial.println(i); 
+    switch(ms[i]){
     case 1:
       Serial.println("MS - 1");
-      digitalWrite(MS1[motorSelect], LOW);
-      digitalWrite(MS2[motorSelect], LOW);
-      digitalWrite(MS3[motorSelect], LOW);
+      digitalWrite(MS1[i], LOW);
+      digitalWrite(MS2[i], LOW);
+      digitalWrite(MS3[i], LOW);
       break;
     case 2:
       Serial.println("MS - 2");
-      digitalWrite(MS1[motorSelect], HIGH);
-      digitalWrite(MS2[motorSelect], LOW);
-      digitalWrite(MS3[motorSelect], LOW);
+      digitalWrite(MS1[i], HIGH);
+      digitalWrite(MS2[i], LOW);
+      digitalWrite(MS3[i], LOW);
       break;
     case 3:
       Serial.println("MS - 4");
-      digitalWrite(MS1[motorSelect], LOW);
-      digitalWrite(MS2[motorSelect], HIGH);
-      digitalWrite(MS3[motorSelect], LOW);
+      digitalWrite(MS1[i], LOW);
+      digitalWrite(MS2[i], HIGH);
+      digitalWrite(MS3[i], LOW);
       break;
     case 4:
       Serial.println("MS - 8");
-      digitalWrite(MS1[motorSelect], HIGH);
-      digitalWrite(MS2[motorSelect], HIGH);
-      digitalWrite(MS3[motorSelect], LOW);
+      digitalWrite(MS1[i], HIGH);
+      digitalWrite(MS2[i], HIGH);
+      digitalWrite(MS3[i], LOW);
       break;
     case 5:
       Serial.println("MS - 16");
-      digitalWrite(MS1[motorSelect], HIGH);
-      digitalWrite(MS2[motorSelect], HIGH);
-      digitalWrite(MS3[motorSelect], HIGH);
+      digitalWrite(MS1[i], HIGH);
+      digitalWrite(MS2[i], HIGH);
+      digitalWrite(MS3[i], HIGH);
       break; 
     }
     // Indicator to pass timing updater to account for
     // change in microsteps
-    updateMs[motorSelect] = true;
+    updateMs[i] = true;
+    lastMs[i] = ms[i];
+  }
   }
   updateTiming(updateMs);
 }

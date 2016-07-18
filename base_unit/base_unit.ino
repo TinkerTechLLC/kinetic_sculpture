@@ -9,6 +9,7 @@
 // Motor driver requires TimerOne interrupt
 #include <TimerOne.h>
 #include <FrequencyTimer2.h>
+#include <Motor.h>
 
 #define SERIAL
 
@@ -45,7 +46,7 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 // Constant reference values
 const long MICROS_PER_SEC = 1000000;
 const int SEC_PER_MIN = 60;
-const int STEP_PER_ROT = 200;
+const int STEP_PER_ROT = 400;
 const int MOTOR_COUNT = 2;
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
 
@@ -58,8 +59,8 @@ const int MS3[2] = {4, 13};
 
 // Motor values
 const int DEFAULT_SPD = 0;
-static int DEFAULT_MS = 1;
-int targetSpd[2] = {100, 50}; // The targer motor speed. Default to 0 RPM
+static int DEFAULT_MS = 5;
+int targetSpd[2] = {DEFAULT_SPD, DEFAULT_SPD}; // The targer motor speed. Default to 0 RPM
 int curSpd[2] = {DEFAULT_SPD, DEFAULT_SPD};    // The actual current motor speed. Will not equal target speed while performing accelerations.
 int ms[2] = {DEFAULT_MS, DEFAULT_MS };         // Default to full-stepping (HIGH). LOW indicates full-stepping.
 long stepDelay[2];                             // Microsecond delay between steps
@@ -69,6 +70,8 @@ boolean updateRequired = true;                 // Flag to indicate timing and LC
 const byte  on[2] = {B01000000,  B00001000};    // High comparison states for switching step pins
 const byte off[2] = {B10111111, B11110111};   // Low comparison states for switching step pins
 int motorSelect = 0;
+
+StepMotor motor[2] = {StepMotor(400, 6, 5, 8, 5, 4), StepMotor(400, 11, 12, 9, 10, 13)};
 
 void setup()
 {
