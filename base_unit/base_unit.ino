@@ -9,7 +9,7 @@
 // Motor driver requires TimerOne interrupt
 #include <TimerOne.h>
 #include <FrequencyTimer2.h>
-#include <Motor.h>
+#include <StepMotor.h>
 
 #define SERIAL
 
@@ -50,31 +50,10 @@ const int STEP_PER_ROT = 400;
 const int MOTOR_COUNT = 2;
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
 
-// Pin assignments
-const int DIR[2] = {5, 12};
-const int STEP[2] = {6, 11};
-const int MS1[2] = {8, 9};
-const int MS2[2] = {5, 10};
-const int MS3[2] = {4, 13};
+// Instantiate motor objects
+StepMotor motor[2] = {StepMotor(STEP_PER_ROT, 6, 5, 8, 5, 4), StepMotor(STEP_PER_ROT, 11, 12, 9, 10, 13)};
 
-// Motor values
-const int DEFAULT_SPD = 0;
-static int DEFAULT_MS = 5;
-int targetSpd[2] = {DEFAULT_SPD, DEFAULT_SPD}; // The targer motor speed. Default to 0 RPM
-int curSpd[2] = {DEFAULT_SPD, DEFAULT_SPD};    // The actual current motor speed. Will not equal target speed while performing accelerations.
-int ms[2] = {DEFAULT_MS, DEFAULT_MS };         // Default to full-stepping (HIGH). LOW indicates full-stepping.
-long stepDelay[2];                             // Microsecond delay between steps
-long lastStepTime[2] = {0, 0};                 // Time of last step in microseconds
-boolean updateRequired = true;                 // Flag to indicate timing and LCD update
-
-const byte  on[2] = {B01000000,  B00001000};    // High comparison states for switching step pins
-const byte off[2] = {B10111111, B11110111};   // Low comparison states for switching step pins
-int motorSelect = 0;
-
-StepMotor motor[2] = {StepMotor(400, 6, 5, 8, 5, 4), StepMotor(400, 11, 12, 9, 10, 13)};
-
-void setup()
-{
+void setup(){
   //******** XBee Setup ********//
   
   // Initialize XBee Software Serial port. Make sure the baud
@@ -94,39 +73,24 @@ void setup()
   lcd.print("Above: 0");
   lcd.setCursor(0, 1);
   lcd.print("Below: 0");
-
-  //******** Motor Setup ********//
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    pinMode(DIR[i], OUTPUT);
-    pinMode(STEP[i], OUTPUT);
-    pinMode(MS1[i], OUTPUT);
-    pinMode(MS2[i], OUTPUT);
-    pinMode(MS3[i], OUTPUT);
-  }
-  updateMsPins();
-  updateDirPins();
-
-  // Setup the timers
-  Timer1.initialize();                        // Get Timer1 ready to accept function and timing
-  FrequencyTimer2::disable();                 // This disables toggling of pin 11 at every interrupt
-  FrequencyTimer2::setOnOverflow(0);          // Initially set the interrupt function to null
 }
 
-void loop()
-{
+void loop(){
   // In loop() we continously check to see if a command has been received.
-  checkXBee();
-
-  if(updateRequired){
-    updateLCD();
-    updateMsPins();
-    updateTiming();
-    updateDirPins();
-    updateRequired = false;
+  checkInput();
+  
+  /* 
+    Also check to see if either of the motor speeds have 
+    changed and update the LCD to reflect that
+  */
+  for(int i = 0; i < MOTOR_COUNT; i++){
+    if(motor[i].updateRequired()){
+      updateLCD();
+    }
   }
 }
 
-void checkXBee(){
+void checkInput(){
     if (COM.available())
   {
     char c = COM.read();
@@ -136,42 +100,123 @@ void checkXBee(){
     case'C':
       changeMotorSelect();
       break;
-    case 'u':      // If received 'w'
-    case 'U':      // or 'W'
-      increaseSpeed(); // Increase specified motor speed by 3 rpm
+    case 'u':      
+    case 'U':      
+      increaseSpeed();
       break;
-    case 'd':      // If received 'd'
-    case 'D':      // or 'D'
-      decreaseSpeed(); // Decrease specified motor speed by 3 rpm
+    case 'd':      
+    case 'D':
+      decreaseSpeed(); 
       break;
-    case 's':      // If received 'r'
-    case 'S':      // or 'R'
-      setMotSpeed();  // Set speed of specified motor
+    case 's':
+    case 'S':
+      setMotSpeed();
       break;
     case 'm':
     case 'M':
-      setMicrosteps(); // Set the microstep setting of the specified motor
+      setMicrosteps();
       break;
     }
   }
 }
 
 void updateLCD(){
-  static int oldSpd[2] = {0, 0};
-  
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    if(oldSpd[i] != targetSpd[i]){
-      lcd.setCursor(6, i);
-      lcd.print("         "); 
-      if(targetSpd[i] >= 0)
-        lcd.setCursor(7, i);
-      else
-        lcd.setCursor(6, i);
-      lcd.print(targetSpd[i]); 
-      oldSpd[i] = targetSpd[i];
-    }
-  }
+  // Get the current motor's speed as RPM and cast as int
+  int which = selectedMotor();
+  int rpm = (int)motor[which].rpm();
+
+  // Clear that motor's LCD line
+  lcd.setCursor(6, which);
+  lcd.print("         "); 
+
+  /*
+    If it's a positive value, add an extra character of padding. This
+    will cause the numeric parts of negative and positive values to
+    both start in the same character position.
+  */
+  if(rpm >= 0)
+    lcd.setCursor(7, which);
+  else
+    lcd.setCursor(6, which);
+  lcd.print(rpm); 
 }
+
+
+//******** COM Command Handlers ********//
+
+void changeMotorSelect(){
+  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  motorSelect = ASCIItoInt(COM.read()); 
+  Serial.print("Selected motor ");
+  Serial.println(motorSelect);
+  updateLCD();
+}
+
+void increaseSpeed(){
+  Serial.println("Increasing motor speed");
+  int rpm = motor[selectedMotor()].rpm() + RPM_INC;
+  motor[selectedMotor()].rpm(rpm);
+  reportSpeed();
+}
+
+void decreaseSpeed(){
+  Serial.println("Decreasing motor speed");
+  int rpm = motor[selectedMotor()].rpm() - RPM_INC;
+  motor[selectedMotor()].rpm(rpm);
+  reportSpeed();
+}
+
+void setMicrosteps(){  
+  while (COM.available() < 1);             // Wait for motor and setting to be retrieved
+  int ms_level = ASCIItoInt(COM.read());   // Convert serial input to an into value
+  /*
+    Would rather have the Xbee radio send just a single character, so convert the
+    five different levels into real microstep settings.
+  */
+  int new_ms = 1;
+  switch(ms_level){
+    case 1:
+      new_ms = 1;
+      break;
+    case 2:
+      new_ms = 2;
+      break;
+    case 3:
+      new_ms = 4;
+      break;
+    case 4:
+      new_ms = 8;
+      break;
+    case 5:
+      new_ms = 16;
+      break;
+  }
+  motor[selectedMotor].ms(new_ms);
+  Serial.println("Setting " + String(selectedMotor()) + " microsteps:" + String(new_ms);
+}
+
+void setMotSpeed(){
+  Serial.println("Setting motor speed");
+  while (COM.available() < 4);             // Wait for pin and three value numbers to be received
+  int dir = ASCIItoHL(COM.read());         // Read the direction
+  int rpm = ASCIItoInt(COM.read()) * 100;  // Convert next three
+  rpm += ASCIItoInt(COM.read()) * 10;      // chars to a 3-digit
+  rpm += ASCIItoInt(COM.read());           // number.
+  rpm = dir ? rpm : -rpm;                  // If direction is false, then the RPM value should be negative
+
+  // Assign the new speed
+  motor[selectedMotor()].rpm(rpm);
+
+  // Print the new speed to the serial monitor
+  reportSpeed();
+}
+
+// Prints the speed of the currently selected motor
+void reportSpeed(){
+  Serial.println("Motor " + String(selectedMotor()) + " speed: " + String((int)motor[selectedMotor()].rpm()));
+}
+
+//******** Helper Functions ********//
 
 // ASCIItoHL
 // Helper function to turn an ASCII value into either HIGH or LOW
@@ -186,8 +231,6 @@ int ASCIItoHL(char c)
   else
     return -1;
 }
-
-//******** Helper Functions ********//
 
 // ASCIItoInt
 // Helper function to turn an ASCII hex value into a 0-15 byte val
@@ -216,4 +259,13 @@ void printMenu()
   XBee.println(F("Connection verified!"));*/
 }
 
-
+/**
+  Returns the number of the currently selected motor
+*/
+int selectedMotor(){
+  for(int i = 0; i < MOTOR_COUNT; i++){
+    if(motor[i].isSelected()){
+      return i;
+    }
+  }
+}
