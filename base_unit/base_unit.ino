@@ -6,10 +6,19 @@
 #include <Adafruit_MCP23017.h>
 #include <Adafruit_RGBLCDShield.h>
 
-// Motor driver requires TimerOne interrupt
+// Motor driver requires TimerOne and FrequencyTimer libraries
 #include <TimerOne.h>
 #include <FrequencyTimer2.h>
+#include <StepMotor.h>
 
+#define XBEE              // Sets whether to run in Xbee or Serial mode. Change this to "SERIAL" to control via the unit via the serial monitor
+
+#ifdef XBEE
+  #define COM XBee
+#endif
+#ifdef SERIAL
+  #define COM Serial
+#endif
 
 //******** XBee Vars ********//
 
@@ -35,36 +44,38 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 //******** Motor Vars ********//
 
 // Constant reference values
-const long MICROS_PER_SEC = 1000000;
-const int SEC_PER_MIN = 60;
-const int STEP_PER_ROT = 200;
-const int MOTOR_COUNT = 2;
+const int STEP_PER_ROT = 400;                 // Number of physical steps per motor. 400 for 0.9deg motors, 200 for 1.8deg motors.
+const int MOTOR_COUNT = 2;                    // Total number of motors
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
+const int MAX_RPM = 348;                      // The maximum allowable RPM for either motor
 
-// Pin assignments
-const int DIR[2] = {7, 11};
-const int STEP[2] = {6, 10};
-const int MS[2] = {4, 12};
+// Motor properties
+int sel_mot = 0;                              // The currently selected motor
+int target_rpm[MOTOR_COUNT] = {30, 30};       // Change the values in the brackets to set the speed to which the motors will initially ramp
+bool flipped[MOTOR_COUNT] = {true, false};    // Whether the motor directions should be flipped from their normal state. Having one flipped
+                                              // will cause them to both have the same positive direction when facing each other
+StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized in setup()
 
-// Motor values
-int targetSpd[2] = {0, 0};                    // The targer motor speed. Default to 0 RPM
-int curSpd[2] = {0, 0};                       // The actual current motor speed. Will not equal target speed while performing accelerations.
-int ms[2] = {HIGH, HIGH};                     // Default to quarter-stepping (HIGH). LOW indicates full-stepping.
-long stepDelay[2];                            // Microsecond delay between steps
-long lastStepTime[2] = {0, 0};                // Time of last step in microseconds
-boolean updateRequired = false;               // Flag to indicate timing and LCD update
+/*
+  FYI, motor[0] is "Above" and motor[1] is "Below"
+*/
 
-const byte on[2] = {B01000000, B00000100};    // High comparison states for switching step pins
-const byte off[2] = {B10111111, B11111011};   // Low comparison states for switching step pins
-
-void setup()
-{
-  //******** XBee Setup ********//
+void setup(){
+  //******** Motor Setup ********//
+  
+  // Initialize the motor objects
+  for(int i = 0; i < MOTOR_COUNT; i++){
+    motor[i] = StepMotor(STEP_PER_ROT);
+    motor[i].rpm(0);
+    motor[i].flip(flipped[i]);
+  }
+  
+  //******** XBee / Serial Setup ********//
   
   // Initialize XBee Software Serial port. Make sure the baud
   // rate matches your XBee setting (9600 is default).
-  XBee.begin(9600); 
-  printMenu(); // Print a helpful menu:
+  Serial.begin(9600); 
+  XBee.begin(9600);
 
 
   //******** LCD Setup ********//
@@ -73,66 +84,38 @@ void setup()
   lcd.begin(16, 2);
   lcd.setBacklight(BLUE);
   lcd.clear();
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    lcd.setCursor(0, i);
-    lcd.print("Mot " + String(i) + " spd: 0");
-  }
-
-  //******** Motor Setup ********//
-  Serial.begin(9600);
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    pinMode(DIR[i], OUTPUT);
-    pinMode(STEP[i], OUTPUT);
-    pinMode(MS[i], OUTPUT);
-  }
-  updateMsPins();
-  updateDirPins();
-
-  // Setup the timers
-  Timer1.initialize();                        // Get Timer1 ready to accept function and timing
-  FrequencyTimer2::disable();                 // This disables toggling of pin 11 at every interrupt
-  FrequencyTimer2::setOnOverflow(0);          // Initially set the interrupt function to null
+  lcd.setCursor(0, 0);
+  lcd.print("Above: 0");
+  lcd.setCursor(0, 1);
+  lcd.print("Below: 0");
+  updateLCD();
 }
 
-void loop()
-{
-  // In loop() we continously check to see if a command has been received.
-  checkXBee();
-
-  if(updateRequired){
-    updateLCD();
-    updateMsPins();
-    updateTiming();
-    updateDirPins();
-    updateRequired = false;
-  }
+void loop(){
+  
+  updateRamping();
+  
+  // In loop() we continously check to see if a command has been received and handle it
+  checkInput();
 }
 
-void checkXBee(){
-    if (XBee.available())
+void checkInput(){
+    if (COM.available())
   {
-    char c = XBee.read();
+    char c = COM.read();
     switch (c)
     {
-    case 'u':      // If received 'w'
-    case 'U':      // or 'W'
-      increaseSpeed(); // Increase specified motor speed by 3 rpm
+    case'c':
+    case'C':
+      changeMotorSelect();
       break;
-    case 'd':      // If received 'd'
-    case 'D':      // or 'D'
-      decreaseSpeed(); // Decrease specified motor speed by 3 rpm
+    case 'u':      
+    case 'U':      
+      increaseSpeed();
       break;
-    case 's':      // If received 'r'
-    case 'S':      // or 'R'
-      setMotSpeed();  // Set speed of specified motor
-      break;
-    case 'f':      // If received 'a'
-    case 'F':      // or 'A'
-      flipMotor();  // Reverse direction of specified motor
-      break;
-    case 'm':
-    case 'M':
-      setMicrosteps(); // Set the microstep setting of the specified motor
+    case 'd':      
+    case 'D':
+      decreaseSpeed(); 
       break;
     }
   }
@@ -140,12 +123,59 @@ void checkXBee(){
 
 void updateLCD(){
   for(int i = 0; i < MOTOR_COUNT; i++){
-    lcd.setCursor(11, i);
-    lcd.print("     "); 
-    lcd.setCursor(11, i);
-    lcd.print(targetSpd[i]); 
+    // Clear that motor's LCD line
+    lcd.setCursor(6, i);
+    lcd.print("         "); 
+    
+    /*
+      If it's a positive value, add an extra character of padding. This
+      will cause the numeric parts of negative and positive values to
+      both start in the same character position.
+    */
+    if(target_rpm[i] >= 0)
+      lcd.setCursor(7, i);
+    else
+      lcd.setCursor(6, i);
+    lcd.print(target_rpm[i]); 
   }
 }
+
+
+//******** COM Command Handlers ********//
+
+void changeMotorSelect(){
+  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
+  sel_mot = ASCIItoInt(COM.read()); 
+  Serial.print("Selected motor ");
+  Serial.println(sel_mot);
+  updateLCD();
+}
+
+void increaseSpeed(){
+  Serial.println("Increasing target speed");
+  target_rpm[sel_mot] += RPM_INC;
+  if(target_rpm[sel_mot] > MAX_RPM)
+    target_rpm[sel_mot] = MAX_RPM;
+  reportSpeed();
+  updateLCD();
+}
+
+void decreaseSpeed(){
+  Serial.println("Decreasing target speed");
+  target_rpm[sel_mot] -= RPM_INC;
+  if(target_rpm[sel_mot] < -MAX_RPM)
+    target_rpm[sel_mot] = -MAX_RPM;
+  reportSpeed();
+  updateLCD();
+}
+
+// Prints the speed of the currently selected motor
+void reportSpeed(){
+  Serial.println("Motor " + String(sel_mot) + " target speed: " + String((int)target_rpm[sel_mot]) 
+    + " motor speed: " + String((int)motor[sel_mot].rpm()));
+}
+
+//******** Helper Functions ********//
 
 // ASCIItoHL
 // Helper function to turn an ASCII value into either HIGH or LOW
@@ -161,8 +191,6 @@ int ASCIItoHL(char c)
     return -1;
 }
 
-//******** Helper Functions ********//
-
 // ASCIItoInt
 // Helper function to turn an ASCII hex value into a 0-15 byte val
 int ASCIItoInt(char c)
@@ -177,17 +205,30 @@ int ASCIItoInt(char c)
     return -1;
 }
 
-// printMenu
-// A big ol' string of Serial prints that print a usage menu over
-// to the other XBee.
-void printMenu()
-{
-  // Everything is "F()"'d -- which stores the strings in flash.
-  // That'll free up SRAM for more importanat stuff.
-  XBee.println();
-  XBee.println(F("Motor Driver XBee Remote Control!"));
-  XBee.println(F("============================"));
-  XBee.println(F("Connection verified!"));
+void updateRamping(){
+  static int last_update = millis();  // Time stamp of last update
+  const float RAMP_INC = 0.5;         // By how much the speed should be adjusted each increment
+  const int UPDATE_TIME = 45;         // How often the speeds should be updated
+  const float THRESHOLD = 0.4;        // How close is "good enough"
+  
+  // If we've waited long enough, update the speeds for each motor
+  if(millis() - last_update > UPDATE_TIME){
+    for(int i = 0; i < MOTOR_COUNT; i++){
+      float new_spd; 
+      // If the target speed is higher than current, increase the speed...
+      if(target_rpm[i] - motor[i].rpm() > THRESHOLD){
+        new_spd = motor[i].rpm() + RAMP_INC;
+        motor[i].rpm(new_spd);
+      }
+      // ...otherwise decrease it
+      else if(target_rpm[i] - motor[i].rpm() < -THRESHOLD){
+        new_spd = motor[i].rpm() - RAMP_INC;
+        motor[i].rpm(new_spd);
+      }
+      else{
+        // If we're within the threshold, don't adjust the speed.
+      }
+    }
+    last_update = millis();
+  }
 }
-
-

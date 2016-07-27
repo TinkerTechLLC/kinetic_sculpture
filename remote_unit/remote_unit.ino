@@ -60,7 +60,7 @@ void adjustSpeed(int button){
 
 void loop() {
 
-  delay(200);
+  delay(250);
   
   // Check for new button presses
   if(curPress == NULL_VAL){
