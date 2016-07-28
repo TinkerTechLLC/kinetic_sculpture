@@ -48,7 +48,7 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 const int STEP_PER_ROT = 400;                 // Number of physical steps per motor. 400 for 0.9deg motors, 200 for 1.8deg motors.
 const int MOTOR_COUNT = 2;                    // Total number of motors
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
-const int RPM_INC_RAPID = 20;                 // How many RPM each rapid increase/decrease should increment
+const int RPM_INC_RAPID = RPM_INC * 7;                 // How many RPM each rapid increase/decrease should increment
 const int MAX_RPM = 348;                      // The maximum allowable RPM for either motor
 
 // Motor properties
