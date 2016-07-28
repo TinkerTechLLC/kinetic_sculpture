@@ -23,6 +23,7 @@
 //******** XBee Vars ********//
 
 SoftwareSerial XBee(2, 3); // Arduino RX, TX (XBee Dout, Din)
+long last_command = 0;
 
 //******** LCD Vars ********/
 
@@ -47,11 +48,13 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 const int STEP_PER_ROT = 400;                 // Number of physical steps per motor. 400 for 0.9deg motors, 200 for 1.8deg motors.
 const int MOTOR_COUNT = 2;                    // Total number of motors
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
+const int RPM_INC_RAPID = 20;                 // How many RPM each rapid increase/decrease should increment
 const int MAX_RPM = 348;                      // The maximum allowable RPM for either motor
 
 // Motor properties
 int sel_mot = 0;                              // The currently selected motor
 int target_rpm[MOTOR_COUNT] = {30, 30};       // Change the values in the brackets to set the speed to which the motors will initially ramp
+int command_rpm[MOTOR_COUNT] = {target_rpm[0], target_rpm[1]};      // Temporary rpm value to which the target is set after the remote button is released
 bool flipped[MOTOR_COUNT] = {true, false};    // Whether the motor directions should be flipped from their normal state. Having one flipped
                                               // will cause them to both have the same positive direction when facing each other
 StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized in setup()
@@ -61,6 +64,14 @@ StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized 
 */
 
 void setup(){
+    
+  //******** XBee / Serial Setup ********//
+  
+  // Initialize XBee Software Serial port. Make sure the baud
+  // rate matches your XBee setting (9600 is default).
+  Serial.begin(9600); 
+  XBee.begin(9600);
+  
   //******** Motor Setup ********//
   
   // Initialize the motor objects
@@ -69,13 +80,7 @@ void setup(){
     motor[i].rpm(0);
     motor[i].flip(flipped[i]);
   }
-  
-  //******** XBee / Serial Setup ********//
-  
-  // Initialize XBee Software Serial port. Make sure the baud
-  // rate matches your XBee setting (9600 is default).
-  Serial.begin(9600); 
-  XBee.begin(9600);
+
 
 
   //******** LCD Setup ********//
@@ -92,30 +97,52 @@ void setup(){
 }
 
 void loop(){
-  
+
+  // Increase or decrease the motor speeds as necessary
   updateRamping();
   
   // In loop() we continously check to see if a command has been received and handle it
   checkInput();
+
+  // Check to see whether new speed targets should be set
+  setTargets();
 }
 
+/**
+ * 
+ * This function checks whether there is any data
+ * on the XBee serial buffer and if there is, will
+ * execute the appropriate command.
+ *
+ */
 void checkInput(){
-    if (COM.available())
+    if (XBee.available())
   {
-    char c = COM.read();
+    last_command = millis();
+    char c = XBee.read();
+    Serial.print("XBee char: ");
+    Serial.println(c);
     switch (c)
     {
-    case'c':
-    case'C':
-      changeMotorSelect();
+    case'a':
+    case'A':
+      changeMotorSelect(0);
       break;
-    case 'u':      
+    case'b':
+    case'B':
+      changeMotorSelect(1);
+      break;
+    case 'u':     
+      increaseSpeed(RPM_INC);
+      break; 
     case 'U':      
-      increaseSpeed();
+      increaseSpeed(RPM_INC_RAPID);
       break;
-    case 'd':      
+    case 'd':    
+      decreaseSpeed(RPM_INC); 
+      break;  
     case 'D':
-      decreaseSpeed(); 
+      decreaseSpeed(RPM_INC_RAPID); 
       break;
     }
   }
@@ -132,39 +159,46 @@ void updateLCD(){
       will cause the numeric parts of negative and positive values to
       both start in the same character position.
     */
-    if(target_rpm[i] >= 0)
+    if(command_rpm[i] >= 0)
       lcd.setCursor(7, i);
     else
       lcd.setCursor(6, i);
-    lcd.print(target_rpm[i]); 
+    lcd.print(command_rpm[i]); 
   }
 }
 
 
 //******** COM Command Handlers ********//
 
-void changeMotorSelect(){
-  while (COM.available() < 1);               // Wait for motor and setting to be retrieved
-  sel_mot = ASCIItoInt(COM.read()); 
+void changeMotorSelect(int which){
+ sel_mot = which;
   Serial.print("Selected motor ");
   Serial.println(sel_mot);
   updateLCD();
 }
 
-void increaseSpeed(){
+void setTargets(){
+  if(millis() - last_command > 500){
+    for(int i = 0; i < MOTOR_COUNT; i++){
+      target_rpm[i] = command_rpm[i];
+    }
+  }
+}
+
+void increaseSpeed(int increment){
   Serial.println("Increasing target speed");
-  target_rpm[sel_mot] += RPM_INC;
-  if(target_rpm[sel_mot] > MAX_RPM)
-    target_rpm[sel_mot] = MAX_RPM;
+  command_rpm[sel_mot] += increment;
+  if(command_rpm[sel_mot] > MAX_RPM)
+    command_rpm[sel_mot] = MAX_RPM;
   reportSpeed();
   updateLCD();
 }
 
-void decreaseSpeed(){
+void decreaseSpeed(int increment){
   Serial.println("Decreasing target speed");
-  target_rpm[sel_mot] -= RPM_INC;
-  if(target_rpm[sel_mot] < -MAX_RPM)
-    target_rpm[sel_mot] = -MAX_RPM;
+  command_rpm[sel_mot] -= increment;
+  if(command_rpm[sel_mot] < -MAX_RPM)
+    command_rpm[sel_mot] = -MAX_RPM;
   reportSpeed();
   updateLCD();
 }
@@ -206,7 +240,7 @@ int ASCIItoInt(char c)
 }
 
 void updateRamping(){
-  static int last_update = millis();  // Time stamp of last update
+  static long last_update = millis();  // Time stamp of last update
   const float RAMP_INC = 0.5;         // By how much the speed should be adjusted each increment
   const int UPDATE_TIME = 45;         // How often the speeds should be updated
   const float THRESHOLD = 0.4;        // How close is "good enough"
