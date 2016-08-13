@@ -30,12 +30,12 @@ void selectMotor(int button){
   switch(button){
     case 0:
     case 1:
-      XBee.print("c0");
+      XBee.print("a");
       Serial.println("Selecting motor 0");
       break;
     case 2:
     case 3:
-      XBee.print("c1");
+      XBee.print("b");
       Serial.println("Selecting motor 1");
       break;
   }
@@ -43,15 +43,32 @@ void selectMotor(int button){
 
 void adjustSpeed(int button){
       switch(button){
-        case 1:
+        case 0:
         case 3:
           XBee.print('u');
           Serial.println("Increasing speed");
           break;
-        case 0:
+        case 1:
         case 2:
           XBee.print('d');
           Serial.println("Decreasing speed");
+          break;
+        default:
+          break;
+    }
+}
+
+void adjustSpeedRapid(int button){
+      switch(button){
+        case 0:
+        case 3:
+          XBee.print('U');
+          Serial.println("Increasing speed rapidly");
+          break;
+        case 1:
+        case 2:
+          XBee.print('D');
+          Serial.println("Decreasing speed rapidly");
           break;
         default:
           break;
@@ -82,7 +99,7 @@ void loop() {
       pressedTime = millis() - startTime;
       // If held sufficiently long, execute the fast adjust action
       if(pressedTime > LONG_THRESH){
-        adjustSpeed(curPress);
+        adjustSpeedRapid(curPress);
       }
     }
     // Released press
