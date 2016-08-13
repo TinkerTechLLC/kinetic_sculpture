@@ -1,5 +1,15 @@
-// SoftwareSerial is used to communicate with the XBee
-#include <SoftwareSerial.h>
+/*
+ *  This is the firmware that should be loaded onto the base Arduino Uno MCU. 
+ *  
+ *  In order for this to compile properly, you must also have the "Step Motor" library
+ *  installed. To install the library, go to https://github.com/TinkerTechLLC/StepMotor
+ *  and download the zip file of the repository. Create a new directory called 
+ *  "StepperMotor" in your Arduino libraries directory. Unpack the zipped file and place 
+ *  StepperMotor.cpp and StepperMotor.h inside the directory you just created.
+ *  
+ *  Author: Michael Ploof
+ *  Date: 8/13/16
+ */
 
 // LCD shield uses I2C to send and receive messages
 #include <Wire.h>
@@ -10,20 +20,6 @@
 #include <TimerOne.h>
 #include <FrequencyTimer2.h>
 #include <StepMotor.h>
-
-#define XBEE              // Sets whether to run in Xbee or Serial mode. Change this to "SERIAL" to control via the unit via the serial monitor
-
-#ifdef XBEE
-  #define COM XBee
-#endif
-#ifdef SERIAL
-  #define COM Serial
-#endif
-
-//******** XBee Vars ********//
-
-SoftwareSerial XBee(2, 3); // Arduino RX, TX (XBee Dout, Din)
-long last_command = 0;
 
 //******** LCD Vars ********/
 
@@ -48,16 +44,16 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 const int STEP_PER_ROT = 400;                 // Number of physical steps per motor. 400 for 0.9deg motors, 200 for 1.8deg motors.
 const int MOTOR_COUNT = 2;                    // Total number of motors
 const int RPM_INC = 3;                        // How many RPM each increase/decrease should increment
-const int RPM_INC_RAPID = RPM_INC * 7;                 // How many RPM each rapid increase/decrease should increment
+const int RPM_INC_RAPID = RPM_INC * 5;        // How many RPM each rapid increase/decrease should increment
 const int MAX_RPM = 348;                      // The maximum allowable RPM for either motor
 
 // Motor properties
 int sel_mot = 0;                              // The currently selected motor
 int target_rpm[MOTOR_COUNT] = {30, 30};       // Change the values in the brackets to set the speed to which the motors will initially ramp
-int command_rpm[MOTOR_COUNT] = {target_rpm[0], target_rpm[1]};      // Temporary rpm value to which the target is set after the remote button is released
 bool flipped[MOTOR_COUNT] = {true, false};    // Whether the motor directions should be flipped from their normal state. Having one flipped
                                               // will cause them to both have the same positive direction when facing each other
 StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized in setup()
+bool update_lcd = true;
 
 /*
   FYI, motor[0] is "Above" and motor[1] is "Below"
@@ -65,12 +61,9 @@ StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized 
 
 void setup(){
     
-  //******** XBee / Serial Setup ********//
-  
-  // Initialize XBee Software Serial port. Make sure the baud
-  // rate matches your XBee setting (9600 is default).
-  Serial.begin(9600); 
-  XBee.begin(9600);
+  //******** Serial Setup ********//
+
+  Serial.begin(9600);
   
   //******** Motor Setup ********//
   
@@ -80,9 +73,7 @@ void setup(){
     motor[i].rpm(0);
     motor[i].flip(flipped[i]);
   }
-
-
-
+  
   //******** LCD Setup ********//
 
   // set up the LCD's number of columns and rows: 
@@ -96,6 +87,11 @@ void setup(){
   updateLCD();
 }
 
+/*
+ * This is the main program loop. After executing
+ * the setup() function, the MCU will continuously
+ * loop the contents of this function.
+ */
 void loop(){
 
   // Increase or decrease the motor speeds as necessary
@@ -104,26 +100,23 @@ void loop(){
   // In loop() we continously check to see if a command has been received and handle it
   checkInput();
 
-  // Check to see whether new speed targets should be set
-  setTargets();
+  // Update the LCD. The updateLCD() function will only redraw the LCD screen if necessary
+  updateLCD();
 }
 
+//******** Update Functions ********//
+
 /**
- * 
  * This function checks whether there is any data
- * on the XBee serial buffer and if there is, will
+ * on the serial buffer and if there is, will
  * execute the appropriate command.
- *
  */
 void checkInput(){
-    if (XBee.available())
-  {
-    last_command = millis();
-    char c = XBee.read();
-    Serial.print("XBee char: ");
-    Serial.println(c);
-    switch (c)
-    {
+  // If there's a command in the serial buffer, execute
+  // the appropriate corresponding command
+  if (Serial.available()) {
+    char c = Serial.read();
+    switch (c) {
     case'a':
     case'A':
       changeMotorSelect(0);
@@ -148,107 +141,66 @@ void checkInput(){
   }
 }
 
+/*
+ * This function checks whether the LCD needs to be updated
+ * and prints the new motor speed values if necessary.
+ */
 void updateLCD(){
-  for(int i = 0; i < MOTOR_COUNT; i++){
-    // Clear that motor's LCD line
-    lcd.setCursor(6, i);
-    lcd.print("         "); 
-    
-    /*
-      If it's a positive value, add an extra character of padding. This
-      will cause the numeric parts of negative and positive values to
-      both start in the same character position.
-    */
-    if(command_rpm[i] >= 0)
-      lcd.setCursor(7, i);
-    else
-      lcd.setCursor(6, i);
-    lcd.print(command_rpm[i]); 
-  }
-}
+  static long last_update = 0;
+  const int UPDATE_THRESHOLD = 100;
 
-
-//******** COM Command Handlers ********//
-
-void changeMotorSelect(int which){
- sel_mot = which;
-  Serial.print("Selected motor ");
-  Serial.println(sel_mot);
-  updateLCD();
-}
-
-void setTargets(){
-  if(millis() - last_command > 500){
+  // Only update if there's been enough time since the last
+  // update and if an update has been requested.
+  if(millis() - last_update > UPDATE_THRESHOLD && update_lcd){
+    // Update both motor lines
     for(int i = 0; i < MOTOR_COUNT; i++){
-      target_rpm[i] = command_rpm[i];
+      // Set the LCD's cursor position
+      lcd.setCursor(6, i);
+
+      /*
+       * This is VERY important. I had previously been commanding
+       * the LCD to print a row of blank spaces, then printing the
+       * new speed over top of that. For some reason, this caused
+       * either one or both motors to not move. I think it was because
+       * the Wire library that the LCD library depends upon also uses
+       * interrupts and by having more characters to write, was somehow
+       * causing interrupt conflicts.
+       * 
+       * So: DO NOT CHANGE THIS FUNCTION
+       */
+      // Construct the new LCD text
+      String out = String(target_rpm[i]);
+      if(target_rpm >= 0){
+        out = " " + out;
+      }
+      if(abs(target_rpm[i]) < 100){
+        out = out + " ";
+      }
+
+      // Print the new text to the LCD
+      lcd.print(out); 
     }
+    // Turn off the update request flag
+    update_lcd = false;
   }
 }
 
-void increaseSpeed(int increment){
-  Serial.println("Increasing target speed");
-  command_rpm[sel_mot] += increment;
-  if(command_rpm[sel_mot] > MAX_RPM)
-    command_rpm[sel_mot] = MAX_RPM;
-  reportSpeed();
-  updateLCD();
-}
-
-void decreaseSpeed(int increment){
-  Serial.println("Decreasing target speed");
-  command_rpm[sel_mot] -= increment;
-  if(command_rpm[sel_mot] < -MAX_RPM)
-    command_rpm[sel_mot] = -MAX_RPM;
-  reportSpeed();
-  updateLCD();
-}
-
-// Prints the speed of the currently selected motor
-void reportSpeed(){
-  Serial.println("Motor " + String(sel_mot) + " target speed: " + String((int)target_rpm[sel_mot]) 
-    + " motor speed: " + String((int)motor[sel_mot].rpm()));
-}
-
-//******** Helper Functions ********//
-
-// ASCIItoHL
-// Helper function to turn an ASCII value into either HIGH or LOW
-int ASCIItoHL(char c)
-{
-  // If received 0, byte value 0, L, or l: return LOW
-  // If received 1, byte value 1, H, or h: return HIGH
-  if ((c == '0') || (c == 0) || (c == 'L') || (c == 'l'))
-    return LOW;
-  else if ((c == '1') || (c == 1) || (c == 'H') || (c == 'h'))
-    return HIGH;
-  else
-    return -1;
-}
-
-// ASCIItoInt
-// Helper function to turn an ASCII hex value into a 0-15 byte val
-int ASCIItoInt(char c)
-{
-  if ((c >= '0') && (c <= '9'))
-    return c - 0x30; // Minus 0x30
-  else if ((c >= 'A') && (c <= 'F'))
-    return c - 0x37; // Minus 0x41 plus 0x0A
-  else if ((c >= 'a') && (c <= 'f'))
-    return c - 0x57; // Minus 0x61 plus 0x0A
-  else
-    return -1;
-}
-
+/**
+ * This function checks whether each of the current motor
+ * speeds is within a small threshold of the target speed,
+ * and if it is not, will ramp the motor speed until it
+ * achieves the target speed.
+ */
 void updateRamping(){
   static long last_update = millis();  // Time stamp of last update
-  const float RAMP_INC = 0.5;         // By how much the speed should be adjusted each increment
-  const int UPDATE_TIME = 45;         // How often the speeds should be updated
+  const float RAMP_INC = 1;           // By how much the speed should be adjusted each increment
+  const int UPDATE_TIME = 20;         // How often the speeds should be updated
   const float THRESHOLD = 0.4;        // How close is "good enough"
   
   // If we've waited long enough, update the speeds for each motor
   if(millis() - last_update > UPDATE_TIME){
     for(int i = 0; i < MOTOR_COUNT; i++){
-      float new_spd; 
+      float new_spd;
       // If the target speed is higher than current, increase the speed...
       if(target_rpm[i] - motor[i].rpm() > THRESHOLD){
         new_spd = motor[i].rpm() + RAMP_INC;
@@ -265,4 +217,36 @@ void updateRamping(){
     }
     last_update = millis();
   }
+}
+
+//******** COM Command Handlers ********//
+
+/*
+ *  Sets the currently selected motor. 
+ */
+void changeMotorSelect(int which){
+ sel_mot = which;
+ update_lcd = true;
+}
+
+/*
+ * Increases the target speed of the selected
+ * motor by the specified increment.
+ */
+void increaseSpeed(int p_increment){
+  target_rpm[sel_mot] += p_increment;
+  if(target_rpm[sel_mot] > MAX_RPM)
+    target_rpm[sel_mot] = MAX_RPM;
+  update_lcd = true;
+}
+
+/*
+ * Decreases the target speed of the selected
+ * motor by the specified increment.
+ */
+void decreaseSpeed(int p_increment){
+  target_rpm[sel_mot] -= p_increment;
+  if(target_rpm[sel_mot] < -MAX_RPM)
+    target_rpm[sel_mot] = -MAX_RPM;
+  update_lcd = true;
 }
