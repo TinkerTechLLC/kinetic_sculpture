@@ -2,7 +2,7 @@
  *  This is the firmware that should be loaded onto the base Arduino Uno MCU. 
  *  
  *  In order for this to compile properly, you must also have the "Step Motor" library
- *  installed. To install the library, go to https://github.com/TinkerTechLLC/StepMotor
+ *  installed. To install the library, go to https://github.com/TinkerTechLLC/TT_StepperMotorShield_Library
  *  and download the zip file of the repository. Create a new directory called 
  *  "StepperMotor" in your Arduino libraries directory. Unpack the zipped file and place 
  *  StepperMotor.cpp and StepperMotor.h inside the directory you just created.
