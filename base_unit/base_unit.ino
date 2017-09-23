@@ -78,12 +78,12 @@ void setup(){
 
   // set up the LCD's number of columns and rows: 
   lcd.begin(16, 2);
-  lcd.setBacklight(BLUE);
+  lcd.setBacklight(GREEN);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Above: 0");
+  lcd.print("Above: O");
   lcd.setCursor(0, 1);
-  lcd.print("Below: 0");
+  lcd.print("Below: O");
   updateLCD();
 }
 
@@ -177,6 +177,9 @@ void updateLCD(){
         out = out + " ";
       }
 
+      // Replace all zeros with upper case O to remove slash
+      out.replace("0", "O");
+      
       // Print the new text to the LCD
       lcd.print(out); 
     }
