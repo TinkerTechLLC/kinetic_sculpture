@@ -50,7 +50,7 @@ const int MAX_RPM = 348;                      // The maximum allowable RPM for e
 // Motor properties
 int sel_mot = 0;                              // The currently selected motor
 int target_rpm[MOTOR_COUNT] = {30, 30};       // Change the values in the brackets to set the speed to which the motors will initially ramp
-bool flipped[MOTOR_COUNT] = {true, false};    // Whether the motor directions should be flipped from their normal state. Having one flipped
+bool flipped[MOTOR_COUNT] = {false, true};    // Whether the motor directions should be flipped from their normal state. Having one flipped
                                               // will cause them to both have the same positive direction when facing each other
 StepMotor motor[MOTOR_COUNT];                 // The motor objects, initialized in setup()
 bool update_lcd = true;
